@@ -163,7 +163,7 @@ def main():
     parser.add_argument(
         "--channel",
         type=str,
-        help="監視するYouTubeチャンネルID",
+        help="監視するYouTubeチャンネルID（カンマ区切りで複数指定可能）",
     )
     parser.add_argument(
         "--count",
@@ -196,7 +196,10 @@ def main():
             success = process_video(args.url, dry_run=args.dry_run)
             sys.exit(0 if success else 1)
         elif args.channel:
-            process_channel(args.channel, count=args.count, dry_run=args.dry_run)
+            # カンマ区切りで複数のチャンネルIDを処理可能にする
+            channels = [c.strip() for c in args.channel.split(",") if c.strip()]
+            for channel_id in channels:
+                process_channel(channel_id, count=args.count, dry_run=args.dry_run)
     except KeyboardInterrupt:
         print("\n\n⚠️ 処理を中断しました")
         sys.exit(130)
