@@ -112,8 +112,17 @@ def get_transcript(video_id: str) -> str:
     from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
     
     try:
-        # 字幕のリストを取得
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        # apiバージョンによるインターフェースの違いを吸収
+        if hasattr(YouTubeTranscriptApi, 'list_transcripts'):
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        else:
+            api = YouTubeTranscriptApi()
+            if hasattr(api, 'list_transcripts'):
+                transcript_list = api.list_transcripts(video_id)
+            elif hasattr(api, 'list'):
+                transcript_list = api.list(video_id)
+            else:
+                raise Exception("YouTubeTranscriptApi.list method not found.")
         
         # 1. 日本語 (手動作成)
         try:
