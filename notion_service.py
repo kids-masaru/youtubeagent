@@ -10,6 +10,8 @@ def create_page(
     url: str,
     summary: str,
     published_date: str,
+    thumbnail_url: str = "",
+    channel_title: str = "",
 ) -> dict:
     """Notionデータベースに新しいページを作成する。
 
@@ -22,7 +24,14 @@ def create_page(
     Returns:
         作成されたページのレスポンス辞書。
     """
-    notion = Client(auth=Config.NOTION_TOKEN)
+    print(f"📝 [Notion] ページ作成開始: {title[:40]}...")
+    print(f"📝 [Notion] DB ID: {Config.NOTION_DATABASE_ID[:8]}...")
+
+    try:
+        notion = Client(auth=Config.NOTION_TOKEN)
+    except Exception as e:
+        print(f"❌ [Notion] クライアント初期化失敗: {type(e).__name__}: {e}")
+        raise
 
     # 日付を YYYY-MM-DD 形式に変換
     date_str = published_date[:10] if published_date else ""
@@ -56,12 +65,38 @@ def create_page(
     if not date_str:
         del properties["投稿日"]
 
+    print(f"📝 [Notion] プロパティ設定完了。ページを作成中...")
+
+    # サムネイルがあれば追加
+    if thumbnail_url:
+        properties["サムネイル"] = {
+            "files": [
+                {
+                    "type": "external",
+                    "name": "thumbnail",
+                    "external": {"url": thumbnail_url},
+                }
+            ]
+        }
+
+    # チャンネル名があれば追加
+    if channel_title:
+        properties["チャンネル名"] = {
+            "select": {"name": channel_title}
+        }
+
     # ページを作成（要約はページ本文のchildren blocksとして追加）
-    page = notion.pages.create(
-        parent={"database_id": Config.NOTION_DATABASE_ID},
-        properties=properties,
-        children=_build_summary_blocks(summary),
-    )
+    try:
+        page = notion.pages.create(
+            parent={"database_id": Config.NOTION_DATABASE_ID},
+            properties=properties,
+            children=_build_summary_blocks(summary),
+        )
+    except Exception as e:
+        print(f"❌ [Notion] ページ作成API失敗: {type(e).__name__}: {e}")
+        raise
+
+    print(f"✅ [Notion] ページ作成成功: {page.get('url', page['id'])}")
 
     # 要約プロパティも更新（Rich TextプロパティがDBにある場合）
     try:
@@ -75,12 +110,10 @@ def create_page(
                 },
             },
         )
-    except Exception:
-        # 「要約」プロパティがデータベースにない場合はスキップ
-        # （本文には既に追加済み）
-        pass
+        print(f"✅ [Notion] 要約プロパティ更新成功")
+    except Exception as e:
+        print(f"⚠️ [Notion] 要約プロパティ更新スキップ: {type(e).__name__}: {e}")
 
-    print(f"✅ Notionページを作成しました: {page.get('url', page['id'])}")
     return page
 
 

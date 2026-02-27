@@ -1,0 +1,18 @@
+[2026/02/27  9:27:13.86] 蜃ｦ逅�繧帝幕蟋九＠縺ｾ縺� 
+Traceback (most recent call last):
+  File "C:\Users\HP\OneDrive\ドキュメント\mottora\youtube-agent\main.py", line 202, in main
+    process_channel(channel_id, count=args.count, dry_run=args.dry_run)
+  File "C:\Users\HP\OneDrive\ドキュメント\mottora\youtube-agent\main.py", line 117, in process_channel
+    print(f"\n\U0001f4fa チャンネル {channel_id} の最新 {count} 件を取得中...")
+UnicodeEncodeError: 'cp932' codec can't encode character '\U0001f4fa' in position 2: illegal multibyte sequence
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\HP\OneDrive\ドキュメント\mottora\youtube-agent\main.py", line 213, in <module>
+    main()
+  File "C:\Users\HP\OneDrive\ドキュメント\mottora\youtube-agent\main.py", line 207, in main
+    print(f"\n\u274c 予期しないエラーが発生しました: {e}")
+UnicodeEncodeError: 'cp932' codec can't encode character '\u274c' in position 2: illegal multibyte sequence
+[2026/02/27  9:27:16.74] 蜃ｦ逅�縺悟ｮ御ｺ�縺励∪縺励◆ 
+---------------------------------------- 

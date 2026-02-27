@@ -220,4 +220,4 @@ def get_latest_videos(channel_id: str, max_results: int = 5) -> list[dict]:
         except Exception as e:
             print(f"⚠️ 動画情報の取得に失敗 ({video_id}): {e}")
 
-    return videos
+    return videos[:max_results]

@@ -1,0 +1,93 @@
+[2026/02/27  9:27:13.86] 処理を開始します 
+Traceback (most recent call last):
+  File "C:\Users\HP\OneDrive\�h�L�������g\mottora\youtube-agent\main.py", line 202, in main
+    process_channel(channel_id, count=args.count, dry_run=args.dry_run)
+  File "C:\Users\HP\OneDrive\�h�L�������g\mottora\youtube-agent\main.py", line 117, in process_channel
+    print(f"\n\U0001f4fa �`�����l�� {channel_id} �̍ŐV {count} �����擾��...")
+UnicodeEncodeError: 'cp932' codec can't encode character '\U0001f4fa' in position 2: illegal multibyte sequence
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\HP\OneDrive\�h�L�������g\mottora\youtube-agent\main.py", line 213, in <module>
+    main()
+  File "C:\Users\HP\OneDrive\�h�L�������g\mottora\youtube-agent\main.py", line 207, in main
+    print(f"\n\u274c �\�����Ȃ��G���[���������܂���: {e}")
+UnicodeEncodeError: 'cp932' codec can't encode character '\u274c' in position 2: illegal multibyte sequence
+[2026/02/27  9:27:16.74] 処理が完了しました 
+---------------------------------------- 
+[2026/02/27 10:56:23.06] 処理を開始します 
+
+📺 チャンネル UCfapRkagDtoQEkGeyD3uERQ の最新 2 件を取得中...
+📋 2 件の動画を処理します
+
+
+--- [1/2] ---
+
+══════════════════════════════════════════════════
+🎬 処理開始: https://www.youtube.com/watch?v=ia8oqQB6laM
+══════════════════════════════════════════════════
+✅ 動画ID: ia8oqQB6laM
+✅ タイトル: 【脱AI初心者】Claude Coworkスキル（プラグイン）が便利すぎるので徹底解説
+   チャンネル: KEITO【AI&WEB ch】
+   公開日: 2026-02-26T11:01:20Z
+   [Subtitle] Found auto-generated Japanese transcript.
+🔎 DEBUG: Transcript Api Full Error: 
+Could not retrieve a transcript for the video https://www.youtube.com/watch?v=ia8oqQB6laM! This is most likely caused by:
+
+YouTube is blocking requests from your IP. This usually is due to one of the following reasons:
+- You have done too many requests and your IP has been blocked by YouTube
+- You are doing requests from an IP belonging to a cloud provider (like AWS, Google Cloud Platform, Azure, etc.). Unfortunately, most IPs from cloud providers are blocked by YouTube.
+
+Ways to work around this are explained in the "Working around IP bans" section of the README (https://github.com/jdepoix/youtube-transcript-api?tab=readme-ov-file#working-around-ip-bans-requestblocked-or-ipblocked-exception).
+
+
+If you are sure that the described cause is not responsible for this error and that a transcript should be retrievable, please create an issue at https://github.com/jdepoix/youtube-transcript-api/issues. Please add which version of youtube_transcript_api you are using and provide the information needed to replicate the error. Also make sure that there are no open issues which already describe your problem!
+❌ 字幕の取得に失敗: 字幕の取得中に予期しないエラーが発生しました: 
+Could not retrieve a transcript for the video https://www.youtube.com/watch?v=ia8oqQB6laM! This is most likely caused by:
+
+YouTube is blocking requests from your IP. This usually is due to one of the following reasons:
+- You have done too many requests and your IP has been blocked by YouTube
+- You are doing requests from an IP belonging to a cloud provider (like AWS, Google Cloud Platform, Azure, etc.). Unfortunately, most IPs from cloud providers are blocked by YouTube.
+
+Ways to work around this are explained in the "Working around IP bans" section of the README (https://github.com/jdepoix/youtube-transcript-api?tab=readme-ov-file#working-around-ip-bans-requestblocked-or-ipblocked-exception).
+
+
+If you are sure that the described cause is not responsible for this error and that a transcript should be retrievable, please create an issue at https://github.com/jdepoix/youtube-transcript-api/issues. Please add which version of youtube_transcript_api you are using and provide the information needed to replicate the error. Also make sure that there are no open issues which already describe your problem!
+
+--- [2/2] ---
+
+══════════════════════════════════════════════════
+🎬 処理開始: https://www.youtube.com/watch?v=RA32cuGc-04
+══════════════════════════════════════════════════
+✅ 動画ID: RA32cuGc-04
+✅ タイトル: Gemini 3.1が凄い！SVGアニメーション生成のAI活用事例
+   チャンネル: KEITO【AI&WEB ch】
+   公開日: 2026-02-22T10:00:29Z
+   [Subtitle] Found auto-generated Japanese transcript.
+🔎 DEBUG: Transcript Api Full Error: 
+Could not retrieve a transcript for the video https://www.youtube.com/watch?v=RA32cuGc-04! This is most likely caused by:
+
+YouTube is blocking requests from your IP. This usually is due to one of the following reasons:
+- You have done too many requests and your IP has been blocked by YouTube
+- You are doing requests from an IP belonging to a cloud provider (like AWS, Google Cloud Platform, Azure, etc.). Unfortunately, most IPs from cloud providers are blocked by YouTube.
+
+Ways to work around this are explained in the "Working around IP bans" section of the README (https://github.com/jdepoix/youtube-transcript-api?tab=readme-ov-file#working-around-ip-bans-requestblocked-or-ipblocked-exception).
+
+
+If you are sure that the described cause is not responsible for this error and that a transcript should be retrievable, please create an issue at https://github.com/jdepoix/youtube-transcript-api/issues. Please add which version of youtube_transcript_api you are using and provide the information needed to replicate the error. Also make sure that there are no open issues which already describe your problem!
+❌ 字幕の取得に失敗: 字幕の取得中に予期しないエラーが発生しました: 
+Could not retrieve a transcript for the video https://www.youtube.com/watch?v=RA32cuGc-04! This is most likely caused by:
+
+YouTube is blocking requests from your IP. This usually is due to one of the following reasons:
+- You have done too many requests and your IP has been blocked by YouTube
+- You are doing requests from an IP belonging to a cloud provider (like AWS, Google Cloud Platform, Azure, etc.). Unfortunately, most IPs from cloud providers are blocked by YouTube.
+
+Ways to work around this are explained in the "Working around IP bans" section of the README (https://github.com/jdepoix/youtube-transcript-api?tab=readme-ov-file#working-around-ip-bans-requestblocked-or-ipblocked-exception).
+
+
+If you are sure that the described cause is not responsible for this error and that a transcript should be retrievable, please create an issue at https://github.com/jdepoix/youtube-transcript-api/issues. Please add which version of youtube_transcript_api you are using and provide the information needed to replicate the error. Also make sure that there are no open issues which already describe your problem!
+
+📊 結果: 0/2 件の処理に成功しました
+[2026/02/27 10:56:30.12] 処理が完了しました 
+---------------------------------------- 

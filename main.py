@@ -6,26 +6,28 @@ import traceback
 
 from config import Config
 from youtube_service import extract_video_id, get_video_info, get_transcript, get_latest_videos
-from gemini_service import summarize_transcript
-from line_service import send_notification
+from gemini_service import summarize_transcript, generate_daily_digest
+from line_service import send_digest
 from notion_service import create_page
 
 
-def process_video(video_url: str, dry_run: bool = False) -> bool:
+def process_video(video_url: str, dry_run: bool = False) -> dict | None:
     """単一動画の処理パイプライン。
 
     1. 動画情報を取得
     2. 字幕を取得
     3. Geminiで要約
-    4. LINE通知
-    5. Notionに保存
+    4. Notionに保存（サムネイル・チャンネル名付き）
+
+    LINE通知はここでは行わない（全件処理後にダイジェストとして送信）。
 
     Args:
         video_url: YouTube動画のURLまたは動画ID。
-        dry_run: Trueの場合、LINE/Notionへの送信をスキップしログのみ出力。
+        dry_run: Trueの場合、Notionへの送信をスキップしログのみ出力。
 
     Returns:
-        処理成功ならTrue。
+        成功時: {"title": str, "summary": str} の辞書。
+        失敗時: None。
     """
     print(f"\n{'═' * 50}")
     print(f"🎬 処理開始: {video_url}")
@@ -37,7 +39,7 @@ def process_video(video_url: str, dry_run: bool = False) -> bool:
         print(f"✅ 動画ID: {video_id}")
     except ValueError as e:
         print(f"❌ {e}")
-        return False
+        return None
 
     # --- Step 2: 動画情報取得 ---
     try:
@@ -47,7 +49,7 @@ def process_video(video_url: str, dry_run: bool = False) -> bool:
         print(f"   公開日: {video_info['published_at']}")
     except Exception as e:
         print(f"❌ 動画情報の取得に失敗: {e}")
-        return False
+        return None
 
     # --- Step 3: 字幕取得 ---
     try:
@@ -55,7 +57,7 @@ def process_video(video_url: str, dry_run: bool = False) -> bool:
         print(f"✅ 字幕取得完了 ({len(transcript)} 文字)")
     except Exception as e:
         print(f"❌ 字幕の取得に失敗: {e}")
-        return False
+        return None
 
     # --- Step 4: Gemini要約 ---
     try:
@@ -67,26 +69,10 @@ def process_video(video_url: str, dry_run: bool = False) -> bool:
         print(f"{'─' * 40}\n")
     except Exception as e:
         print(f"❌ 要約の生成に失敗: {e}")
-        return False
+        return None
 
-    # --- Step 5: LINE通知 ---
+    # --- Step 5: Notion保存（サムネイル・チャンネル名付き） ---
     full_url = f"https://www.youtube.com/watch?v={video_id}"
-    if dry_run:
-        print("🔸 [DRY-RUN] LINE通知をスキップしました")
-    else:
-        try:
-            line_result = send_notification(
-                title=video_info["title"],
-                summary=summary,
-                video_url=full_url,
-                thumbnail_url=video_info.get("thumbnail_url", ""),
-            )
-            if not line_result:
-                print("⚠️ LINE通知の送信に問題がありました")
-        except Exception as e:
-            print(f"⚠️ LINE通知でエラーが発生: {e}")
-
-    # --- Step 6: Notion保存 ---
     if dry_run:
         print("🔸 [DRY-RUN] Notionページ作成をスキップしました")
     else:
@@ -96,18 +82,23 @@ def process_video(video_url: str, dry_run: bool = False) -> bool:
                 url=full_url,
                 summary=summary,
                 published_date=video_info.get("published_at", ""),
+                thumbnail_url=video_info.get("thumbnail_url", ""),
+                channel_title=video_info.get("channel_title", ""),
             )
         except Exception as e:
-            print(f"⚠️ Notionページ作成でエラーが発生: {e}")
+            print(f"⚠️ Notionページ作成でエラーが発生: {type(e).__name__}: {e}")
 
     print(f"\n{'═' * 50}")
     print("🎉 処理完了!")
     print(f"{'═' * 50}\n")
-    return True
+
+    return {"title": video_info["title"], "summary": summary}
 
 
 def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> None:
     """チャンネルの最新動画を処理する。
+
+    全動画をNotionに保存した後、ダイジェストを生成してLINEに1通だけ送信する。
 
     Args:
         channel_id: YouTubeチャンネルID。
@@ -128,14 +119,35 @@ def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> N
 
     print(f"📋 {len(videos)} 件の動画を処理します\n")
 
-    success_count = 0
+    # --- 各動画を処理してNotionに保存、要約を収集 ---
+    results = []
     for i, video in enumerate(videos, 1):
         print(f"\n--- [{i}/{len(videos)}] ---")
         video_url = f"https://www.youtube.com/watch?v={video['video_id']}"
-        if process_video(video_url, dry_run=dry_run):
-            success_count += 1
+        result = process_video(video_url, dry_run=dry_run)
+        if result:
+            results.append(result)
 
-    print(f"\n📊 結果: {success_count}/{len(videos)} 件の処理に成功しました")
+    print(f"\n📊 結果: {len(results)}/{len(videos)} 件の処理に成功しました")
+
+    # --- 全件処理後にダイジェスト生成 & LINE送信 ---
+    if results and not dry_run:
+        print(f"\n📰 ダイジェストを生成中...")
+        try:
+            digest = generate_daily_digest(results)
+            print(f"\n{'─' * 40}")
+            print("📰 ダイジェスト:")
+            print(f"{'─' * 40}")
+            print(digest)
+            print(f"{'─' * 40}\n")
+
+            send_digest(digest)
+        except Exception as e:
+            print(f"⚠️ ダイジェスト生成/送信でエラーが発生: {type(e).__name__}: {e}")
+    elif results and dry_run:
+        print("🔸 [DRY-RUN] ダイジェスト生成・LINE送信をスキップしました")
+    else:
+        print("⚠️ 成功した動画がないため、ダイジェストは生成しません")
 
 
 def main():
@@ -145,11 +157,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  # 単一動画を処理
+  # 単一動画を処理（Notionに保存のみ）
   python main.py --url "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-  # チャンネルの最新5件を処理
-  python main.py --channel "UCxxxxxxx" --count 5
+  # チャンネルの最新2件を処理（Notion保存 + LINEダイジェスト）
+  python main.py --channel "UCxxxxxxx" --count 2
 
   # ドライランモード（API送信をスキップ）
   python main.py --url "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --dry-run
@@ -193,8 +205,8 @@ def main():
 
     try:
         if args.url:
-            success = process_video(args.url, dry_run=args.dry_run)
-            sys.exit(0 if success else 1)
+            result = process_video(args.url, dry_run=args.dry_run)
+            sys.exit(0 if result else 1)
         elif args.channel:
             # カンマ区切りで複数のチャンネルIDを処理可能にする
             channels = [c.strip() for c in args.channel.split(",") if c.strip()]
