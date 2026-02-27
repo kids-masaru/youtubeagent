@@ -8,7 +8,7 @@ from config import Config
 
 # 分類＋要約プロンプト（YouTube URLをGeminiに直接渡す）
 CLASSIFY_AND_SUMMARIZE_PROMPT = """あなたはYouTube動画の内容を正確かつ簡潔に要約する専門家です。
-このYouTube動画を視聴して2つの作業を行ってください。
+このYouTube動画を視聴して3つの作業を行ってください。
 
 ━━━━━━━━━━━━━━━━━━
 ■ 作業1: コンテンツ分類
@@ -29,7 +29,13 @@ CLASSIFY_AND_SUMMARIZE_PROMPT = """あなたはYouTube動画の内容を正確�
       すでに広く知られている情報の再解説
 
 ━━━━━━━━━━━━━━━━━━
-■ 作業2: 要約
+■ 作業2: キーワード抽出
+━━━━━━━━━━━━━━━━━━
+この動画の内容を表す重要なキーワードを3〜5個抽出してください。
+固有名詞（サービス名、技術名など）を優先してください。
+
+━━━━━━━━━━━━━━━━━━
+■ 作業3: 要約
 ━━━━━━━━━━━━━━━━━━
 日本語で以下のフォーマットに従って要約してください。
 
@@ -47,9 +53,11 @@ CLASSIFY_AND_SUMMARIZE_PROMPT = """あなたはYouTube動画の内容を正確�
 ━━━━━━━━━━━━━━━━━━
 ■ 出力形式（厳守）
 ━━━━━━━━━━━━━━━━━━
-必ず1行目に分類ラベルだけを出力し、2行目以降に要約を出力してください。
+必ず以下の順番で出力してください。
 
-1行目の例: CATEGORY: NEWS
+1行目: 分類ラベル（例: CATEGORY: NEWS）
+2行目: キーワード（カンマ区切り。例: KEYWORDS: Gemini, SVG, AI活用）
+3行目以降: 要約
 """
 
 
@@ -111,33 +119,49 @@ def analyze_video(video_url: str) -> dict:
 
 
 def _parse_classification_response(text: str) -> dict:
-    """Geminiの分類+要約レスポンスをパースする。
+    """Geminiの分類+キーワード+要約レスポンスをパースする。
 
-    1行目: CATEGORY: NEWS（または HOWTO / GENERAL）
-    2行目以降: 要約テキスト
+    1行目: CATEGORY: NEWS
+    2行目: KEYWORDS: Gemini, SVG, AI活用
+    3行目以降: 要約テキスト
 
     Args:
         text: Geminiのレスポンステキスト。
 
     Returns:
-        {"category": str, "summary": str}
+        {"category": str, "keywords": list[str], "summary": str}
     """
-    lines = text.strip().split("\n", 1)
+    lines = text.strip().split("\n")
 
-    category = "NEWS"  # デフォルト（パース失敗時はNEWS寄り）
-    summary = text
+    category = "NEWS"  # デフォルト
+    keywords = []
+    summary_start = 0
 
-    if len(lines) >= 2:
-        first_line = lines[0].strip().upper()
-        if "HOWTO" in first_line:
-            category = "HOWTO"
-        elif "GENERAL" in first_line:
-            category = "GENERAL"
-        elif "NEWS" in first_line:
-            category = "NEWS"
-        summary = lines[1].strip()
+    for i, line in enumerate(lines):
+        stripped = line.strip().upper()
+        if stripped.startswith("CATEGORY:"):
+            cat_value = line.strip().split(":", 1)[1].strip().upper()
+            if "HOWTO" in cat_value:
+                category = "HOWTO"
+            elif "GENERAL" in cat_value:
+                category = "GENERAL"
+            else:
+                category = "NEWS"
+            summary_start = i + 1
+        elif stripped.startswith("KEYWORDS:"):
+            kw_value = line.strip().split(":", 1)[1].strip()
+            keywords = [k.strip() for k in kw_value.split(",") if k.strip()]
+            summary_start = i + 1
+        else:
+            # 分類・キーワード行以外が出てきたら要約の開始
+            if summary_start <= i and (category != "NEWS" or keywords):
+                break
 
-    return {"category": category, "summary": summary}
+    summary = "\n".join(lines[summary_start:]).strip()
+    if not summary:
+        summary = text  # パース失敗時は全文を要約とする
+
+    return {"category": category, "keywords": keywords, "summary": summary}
 
 
 def generate_daily_digest(summaries: list[dict]) -> str:

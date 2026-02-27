@@ -13,6 +13,7 @@ def create_page(
     thumbnail_url: str = "",
     channel_title: str = "",
     genre: str = "",
+    keywords: list[str] | None = None,
 ) -> dict:
     """Notionデータベースに新しいページを作成する。
 
@@ -90,6 +91,12 @@ def create_page(
     if genre:
         properties["ジャンル"] = {
             "multi_select": [{"name": genre}]
+        }
+
+    # キーワードがあれば追加
+    if keywords:
+        properties["キーワード"] = {
+            "multi_select": [{"name": kw[:100]} for kw in keywords[:10]]
         }
 
     # ページを作成（要約はページ本文のchildren blocksとして追加）

@@ -55,8 +55,10 @@ def process_video(video_url: str, dry_run: bool = False) -> dict | None:
         print(f"🔍 Geminiで動画を分析中...")
         result = analyze_video(full_url)
         category = result["category"]
+        keywords = result["keywords"]
         summary = result["summary"]
         print(f"✅ 分類: {category}")
+        print(f"✅ キーワード: {', '.join(keywords) if keywords else 'なし'}")
         print(f"\n{'─' * 40}")
         print("📝 要約結果:")
         print(f"{'─' * 40}")
@@ -79,6 +81,7 @@ def process_video(video_url: str, dry_run: bool = False) -> dict | None:
                 thumbnail_url=video_info.get("thumbnail_url", ""),
                 channel_title=video_info.get("channel_title", ""),
                 genre=category,
+                keywords=keywords,
             )
         except Exception as e:
             print(f"⚠️ Notionページ作成でエラーが発生: {type(e).__name__}: {e}")
