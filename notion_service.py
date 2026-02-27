@@ -12,6 +12,7 @@ def create_page(
     published_date: str,
     thumbnail_url: str = "",
     channel_title: str = "",
+    genre: str = "",
 ) -> dict:
     """Notionデータベースに新しいページを作成する。
 
@@ -83,6 +84,12 @@ def create_page(
     if channel_title:
         properties["チャンネル名"] = {
             "select": {"name": channel_title}
+        }
+
+    # ジャンル（NEWS/HOWTO/GENERAL）があれば追加
+    if genre:
+        properties["ジャンル"] = {
+            "multi_select": [{"name": genre}]
         }
 
     # ページを作成（要約はページ本文のchildren blocksとして追加）

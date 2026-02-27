@@ -1,4 +1,4 @@
-"""YouTube動画情報・字幕取得サービス"""
+"""YouTube動画情報取得サービス"""
 
 import re
 from urllib.parse import urlparse, parse_qs
@@ -93,96 +93,6 @@ def get_video_info(video_id: str) -> dict:
         "thumbnail_url": thumbnail_url,
         "channel_title": snippet["channelTitle"],
     }
-
-
-def get_transcript(video_id: str) -> str:
-    """動画の字幕（トランスクリプト）を取得する。
-
-    日本語字幕を優先し、なければ英語、自動生成の順にフォールバック。
-
-    Args:
-        video_id: YouTube動画ID。
-
-    Returns:
-        結合された字幕テキスト。
-
-    Raises:
-        Exception: 字幕が取得できない場合。
-    """
-    from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
-    
-    try:
-        # apiバージョンによるインターフェースの違いを吸収
-        if hasattr(YouTubeTranscriptApi, 'list_transcripts'):
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        else:
-            api = YouTubeTranscriptApi()
-            if hasattr(api, 'list_transcripts'):
-                transcript_list = api.list_transcripts(video_id)
-            elif hasattr(api, 'list'):
-                transcript_list = api.list(video_id)
-            else:
-                raise Exception("YouTubeTranscriptApi.list method not found.")
-        
-        # 1. 日本語 (手動作成)
-        try:
-            transcript = transcript_list.find_manually_created_transcript(['ja'])
-            print(f"   [Subtitle] Found manual Japanese transcript.")
-            return _join_transcript(transcript.fetch())
-        except NoTranscriptFound:
-            pass
-
-        # 2. 日本語 (自動生成)
-        try:
-            transcript = transcript_list.find_generated_transcript(['ja'])
-            print(f"   [Subtitle] Found auto-generated Japanese transcript.")
-            return _join_transcript(transcript.fetch())
-        except NoTranscriptFound:
-            pass
-
-        # 3. 英語 (手動) -> 日本語に翻訳
-        try:
-            transcript = transcript_list.find_manually_created_transcript(['en'])
-            print(f"   [Subtitle] Translating manual English transcript to Japanese...")
-            translated = transcript.translate('ja')
-            return _join_transcript(translated.fetch())
-        except NoTranscriptFound:
-            pass
-
-        # 4. その他何でもよいので最初に見つかった字幕を日本語に翻訳
-        try:
-            # 第一言語を取得
-            first_transcript = next(iter(transcript_list))
-            print(f"   [Subtitle] Translating {first_transcript.language} ({first_transcript.language_code}) transcript to Japanese...")
-            translated = first_transcript.translate('ja')
-            return _join_transcript(translated.fetch())
-        except Exception as e:
-            print(f"   [Subtitle] Translation fallback failed: {e}")
-            pass
-
-        # 全て失敗
-        raise Exception("利用可能な字幕が見つかりませんでした。")
-
-    except (TranscriptsDisabled, NoTranscriptFound) as e:
-        raise Exception(f"この動画では字幕が無効または存在しません (Code: {type(e).__name__})")
-    except VideoUnavailable:
-        raise Exception(f"動画が利用可能ではありません: {video_id}")
-    except Exception as e:
-        # 詳細なログを出力してデバッグしやすくする
-        print(f"🔎 DEBUG: Transcript Api Full Error: {str(e)}")
-        raise Exception(f"字幕の取得中に予期しないエラーが発生しました: {str(e)}")
-
-
-def _join_transcript(entries) -> str:
-    """トランスクリプトのエントリーリストをテキストに結合する。"""
-    texts = []
-    for entry in entries:
-        # FetchedTranscriptSnippet or dict
-        if hasattr(entry, "text"):
-            texts.append(entry.text)
-        elif isinstance(entry, dict) and "text" in entry:
-            texts.append(entry["text"])
-    return " ".join(texts)
 
 
 def get_latest_videos(channel_id: str, max_results: int = 5) -> list[dict]:

@@ -1,12 +1,37 @@
-"""Gemini APIによる字幕要約サービス"""
+"""Gemini APIによる動画分析・要約・ダイジェスト生成サービス"""
 
 from google import genai
+from google.genai import types
 
 from config import Config
 
-# 要約プロンプトテンプレート
-SUMMARY_PROMPT = """あなたはYouTube動画の内容を正確かつ簡潔に要約する専門家です。
-以下のYouTube動画の字幕テキストを分析し、日本語で以下のフォーマットに厳密に従って要約してください。
+
+# 分類＋要約プロンプト（YouTube URLをGeminiに直接渡す）
+CLASSIFY_AND_SUMMARIZE_PROMPT = """あなたはYouTube動画の内容を正確かつ簡潔に要約する専門家です。
+このYouTube動画を視聴して2つの作業を行ってください。
+
+━━━━━━━━━━━━━━━━━━
+■ 作業1: コンテンツ分類
+━━━━━━━━━━━━━━━━━━
+この動画の内容を以下の3つのいずれかに分類してください。
+迷った場合は NEWS 寄りに判定してください。
+
+【NEWS】新しい情報・最新ニュース
+  例: 新サービスのリリース、既存サービスのアップデート、
+      業界の最新動向、新機能の発表、法改正、新技術の登場
+
+【HOWTO】作り方・使い方の解説
+  例: アプリの作り方、ツールの操作方法、
+      プログラミングチュートリアル、設定手順の解説
+
+【GENERAL】一般的な知識・考え方
+  例: リーダーシップ論、働き方改革、自己啓発、
+      すでに広く知られている情報の再解説
+
+━━━━━━━━━━━━━━━━━━
+■ 作業2: 要約
+━━━━━━━━━━━━━━━━━━
+日本語で以下のフォーマットに従って要約してください。
 
 【概要】
 （140文字程度で動画の内容を簡潔にまとめてください）
@@ -17,40 +42,15 @@ SUMMARY_PROMPT = """あなたはYouTube動画の内容を正確かつ簡潔に�
 ・ポイント3
 
 【アクションアイテム/結論】
-（視聴者が取るべきアクションや動画の結論を簡潔にまとめてください）
+（視聴者が取るべきアクションや動画の結論を簡潔に）
 
----
-以下が字幕テキストです:
+━━━━━━━━━━━━━━━━━━
+■ 出力形式（厳守）
+━━━━━━━━━━━━━━━━━━
+必ず1行目に分類ラベルだけを出力し、2行目以降に要約を出力してください。
 
-{transcript}
+1行目の例: CATEGORY: NEWS
 """
-
-
-def summarize_transcript(transcript: str) -> str:
-    """字幕テキストをGemini APIで要約する。
-
-    Args:
-        transcript: YouTube動画の字幕テキスト。
-
-    Returns:
-        フォーマットされた要約テキスト。
-    """
-    client = genai.Client(api_key=Config.GEMINI_API_KEY)
-
-    # 字幕が長すぎる場合は先頭を切り詰める（Gemini 2.0 Flashのコンテキスト上限考慮）
-    max_chars = 100_000
-    if len(transcript) > max_chars:
-        transcript = transcript[:max_chars]
-        transcript += "\n\n（※字幕テキストが長いため、途中までを使用しています）"
-
-    prompt = SUMMARY_PROMPT.format(transcript=transcript)
-
-    response = client.models.generate_content(
-        model="gemini-3-flash-preview",
-        contents=prompt,
-    )
-
-    return response.text
 
 
 # ダイジェスト（日刊まとめ）プロンプトテンプレート
@@ -85,11 +85,66 @@ DIGEST_PROMPT = """あなたは最新のAI・テクノロジー情報をわか�
 """
 
 
+def analyze_video(video_url: str) -> dict:
+    """YouTube動画をGeminiで直接分析する（分類+要約）。
+
+    youtube-transcript-apiを使わず、GeminiにYouTube URLを直接渡して
+    動画の内容を分析します。IPブロックのリスクがありません。
+
+    Args:
+        video_url: YouTube動画のURL。
+
+    Returns:
+        {"category": "NEWS"|"HOWTO"|"GENERAL", "summary": str}
+    """
+    client = genai.Client(api_key=Config.GEMINI_API_KEY)
+
+    response = client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=[
+            types.Part.from_uri(file_uri=video_url, mime_type="video/*"),
+            CLASSIFY_AND_SUMMARIZE_PROMPT,
+        ],
+    )
+
+    return _parse_classification_response(response.text)
+
+
+def _parse_classification_response(text: str) -> dict:
+    """Geminiの分類+要約レスポンスをパースする。
+
+    1行目: CATEGORY: NEWS（または HOWTO / GENERAL）
+    2行目以降: 要約テキスト
+
+    Args:
+        text: Geminiのレスポンステキスト。
+
+    Returns:
+        {"category": str, "summary": str}
+    """
+    lines = text.strip().split("\n", 1)
+
+    category = "NEWS"  # デフォルト（パース失敗時はNEWS寄り）
+    summary = text
+
+    if len(lines) >= 2:
+        first_line = lines[0].strip().upper()
+        if "HOWTO" in first_line:
+            category = "HOWTO"
+        elif "GENERAL" in first_line:
+            category = "GENERAL"
+        elif "NEWS" in first_line:
+            category = "NEWS"
+        summary = lines[1].strip()
+
+    return {"category": category, "summary": summary}
+
+
 def generate_daily_digest(summaries: list[dict]) -> str:
     """複数の動画要約から日刊ダイジェストを生成する。
 
     Args:
-        summaries: 動画要約のリスト。各要素は {{"title": str, "summary": str}}。
+        summaries: 動画要約のリスト。各要素は {"title": str, "summary": str}。
 
     Returns:
         日刊ダイジェストテキスト。

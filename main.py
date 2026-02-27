@@ -2,11 +2,12 @@
 
 import argparse
 import sys
+import time
 import traceback
 
 from config import Config
-from youtube_service import extract_video_id, get_video_info, get_transcript, get_latest_videos
-from gemini_service import summarize_transcript, generate_daily_digest
+from youtube_service import extract_video_id, get_video_info, get_latest_videos
+from gemini_service import analyze_video, generate_daily_digest
 from line_service import send_digest
 from notion_service import create_page
 
@@ -14,20 +15,17 @@ from notion_service import create_page
 def process_video(video_url: str, dry_run: bool = False) -> dict | None:
     """単一動画の処理パイプライン。
 
-    1. 動画情報を取得
-    2. 字幕を取得
-    3. Geminiで要約
-    4. Notionに保存（サムネイル・チャンネル名付き）
-
-    LINE通知はここでは行わない（全件処理後にダイジェストとして送信）。
+    1. 動画情報を取得（YouTube Data API）
+    2. Geminiに直接URLを渡して分類+要約（字幕スクレイピング不要）
+    3. Notionに保存（サムネイル・チャンネル名・ジャンル付き）
 
     Args:
         video_url: YouTube動画のURLまたは動画ID。
-        dry_run: Trueの場合、Notionへの送信をスキップしログのみ出力。
+        dry_run: Trueの場合、Notionへの送信をスキップ。
 
     Returns:
-        成功時: {"title": str, "summary": str} の辞書。
-        失敗時: None。
+        NEWS系の場合: {"title": str, "summary": str}（ダイジェスト素材）
+        HOWTO/GENERAL系またはエラーの場合: None
     """
     print(f"\n{'═' * 50}")
     print(f"🎬 処理開始: {video_url}")
@@ -41,7 +39,7 @@ def process_video(video_url: str, dry_run: bool = False) -> dict | None:
         print(f"❌ {e}")
         return None
 
-    # --- Step 2: 動画情報取得 ---
+    # --- Step 2: 動画情報取得（YouTube Data API） ---
     try:
         video_info = get_video_info(video_id)
         print(f"✅ タイトル: {video_info['title']}")
@@ -51,28 +49,24 @@ def process_video(video_url: str, dry_run: bool = False) -> dict | None:
         print(f"❌ 動画情報の取得に失敗: {e}")
         return None
 
-    # --- Step 3: 字幕取得 ---
+    # --- Step 3: Geminiで直接分析（分類+要約） ---
+    full_url = f"https://www.youtube.com/watch?v={video_id}"
     try:
-        transcript = get_transcript(video_id)
-        print(f"✅ 字幕取得完了 ({len(transcript)} 文字)")
-    except Exception as e:
-        print(f"❌ 字幕の取得に失敗: {e}")
-        return None
-
-    # --- Step 4: Gemini要約 ---
-    try:
-        summary = summarize_transcript(transcript)
+        print(f"🔍 Geminiで動画を分析中...")
+        result = analyze_video(full_url)
+        category = result["category"]
+        summary = result["summary"]
+        print(f"✅ 分類: {category}")
         print(f"\n{'─' * 40}")
         print("📝 要約結果:")
         print(f"{'─' * 40}")
         print(summary)
         print(f"{'─' * 40}\n")
     except Exception as e:
-        print(f"❌ 要約の生成に失敗: {e}")
+        print(f"❌ Gemini分析に失敗: {type(e).__name__}: {e}")
         return None
 
-    # --- Step 5: Notion保存（サムネイル・チャンネル名付き） ---
-    full_url = f"https://www.youtube.com/watch?v={video_id}"
+    # --- Step 4: Notion保存（全分類、サムネイル・チャンネル名・ジャンル付き） ---
     if dry_run:
         print("🔸 [DRY-RUN] Notionページ作成をスキップしました")
     else:
@@ -84,21 +78,27 @@ def process_video(video_url: str, dry_run: bool = False) -> dict | None:
                 published_date=video_info.get("published_at", ""),
                 thumbnail_url=video_info.get("thumbnail_url", ""),
                 channel_title=video_info.get("channel_title", ""),
+                genre=category,
             )
         except Exception as e:
             print(f"⚠️ Notionページ作成でエラーが発生: {type(e).__name__}: {e}")
 
     print(f"\n{'═' * 50}")
-    print("🎉 処理完了!")
+    print(f"🎉 処理完了! (分類: {category})")
     print(f"{'═' * 50}\n")
 
-    return {"title": video_info["title"], "summary": summary}
+    # NEWS系のみダイジェスト素材として返す
+    if category == "NEWS":
+        return {"title": video_info["title"], "summary": summary}
+    else:
+        print(f"ℹ️ {category}のためLINEダイジェストには含めません")
+        return None
 
 
 def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> None:
     """チャンネルの最新動画を処理する。
 
-    全動画をNotionに保存した後、ダイジェストを生成してLINEに1通だけ送信する。
+    全動画をNotionに保存した後、NEWS系のみでダイジェストを生成してLINEに送信。
 
     Args:
         channel_id: YouTubeチャンネルID。
@@ -119,22 +119,27 @@ def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> N
 
     print(f"📋 {len(videos)} 件の動画を処理します\n")
 
-    # --- 各動画を処理してNotionに保存、要約を収集 ---
-    results = []
+    # --- 各動画を処理してNotionに保存、NEWS系の要約を収集 ---
+    news_results = []
     for i, video in enumerate(videos, 1):
         print(f"\n--- [{i}/{len(videos)}] ---")
         video_url = f"https://www.youtube.com/watch?v={video['video_id']}"
         result = process_video(video_url, dry_run=dry_run)
         if result:
-            results.append(result)
+            news_results.append(result)
 
-    print(f"\n📊 結果: {len(results)}/{len(videos)} 件の処理に成功しました")
+        # 動画間に3秒待機（API負荷軽減）
+        if i < len(videos):
+            print("⏳ 3秒待機中...")
+            time.sleep(3)
 
-    # --- 全件処理後にダイジェスト生成 & LINE送信 ---
-    if results and not dry_run:
-        print(f"\n📰 ダイジェストを生成中...")
+    print(f"\n📊 結果: NEWS {len(news_results)} 件 / 全 {len(videos)} 件")
+
+    # --- NEWS系のみでダイジェスト生成 & LINE送信 ---
+    if news_results and not dry_run:
+        print(f"\n📰 ダイジェストを生成中（{len(news_results)} 件のNEWS）...")
         try:
-            digest = generate_daily_digest(results)
+            digest = generate_daily_digest(news_results)
             print(f"\n{'─' * 40}")
             print("📰 ダイジェスト:")
             print(f"{'─' * 40}")
@@ -144,10 +149,10 @@ def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> N
             send_digest(digest)
         except Exception as e:
             print(f"⚠️ ダイジェスト生成/送信でエラーが発生: {type(e).__name__}: {e}")
-    elif results and dry_run:
+    elif news_results and dry_run:
         print("🔸 [DRY-RUN] ダイジェスト生成・LINE送信をスキップしました")
     else:
-        print("⚠️ 成功した動画がないため、ダイジェストは生成しません")
+        print("ℹ️ NEWS系の動画がなかったため、ダイジェストは生成しません")
 
 
 def main():
@@ -206,7 +211,7 @@ def main():
     try:
         if args.url:
             result = process_video(args.url, dry_run=args.dry_run)
-            sys.exit(0 if result else 1)
+            sys.exit(0 if result is not None else 1)
         elif args.channel:
             # カンマ区切りで複数のチャンネルIDを処理可能にする
             channels = [c.strip() for c in args.channel.split(",") if c.strip()]
