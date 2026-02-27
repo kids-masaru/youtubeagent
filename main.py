@@ -98,15 +98,19 @@ def process_video(video_url: str, dry_run: bool = False) -> dict | None:
         return None
 
 
-def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> None:
+def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> list[dict]:
     """チャンネルの最新動画を処理する。
 
-    全動画をNotionに保存した後、NEWS系のみでダイジェストを生成してLINEに送信。
+    全動画をNotionに保存し、NEWS系の要約リストを返す。
+    LINE送信はここでは行わない（全チャンネル処理後に一括送信）。
 
     Args:
         channel_id: YouTubeチャンネルID。
         count: 取得する動画数。
-        dry_run: Trueの場合、LINE/Notionへの送信をスキップ。
+        dry_run: Trueの場合、Notionへの送信をスキップ。
+
+    Returns:
+        NEWS系の動画要約リスト。
     """
     print(f"\n📺 チャンネル {channel_id} の最新 {count} 件を取得中...")
 
@@ -114,11 +118,11 @@ def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> N
         videos = get_latest_videos(channel_id, max_results=count)
     except Exception as e:
         print(f"❌ チャンネルの動画取得に失敗: {e}")
-        return
+        return []
 
     if not videos:
         print("⚠️ 動画が見つかりませんでした")
-        return
+        return []
 
     print(f"📋 {len(videos)} 件の動画を処理します\n")
 
@@ -137,25 +141,7 @@ def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> N
             time.sleep(3)
 
     print(f"\n📊 結果: NEWS {len(news_results)} 件 / 全 {len(videos)} 件")
-
-    # --- NEWS系のみでダイジェスト生成 & LINE送信 ---
-    if news_results and not dry_run:
-        print(f"\n📰 ダイジェストを生成中（{len(news_results)} 件のNEWS）...")
-        try:
-            digest = generate_daily_digest(news_results)
-            print(f"\n{'─' * 40}")
-            print("📰 ダイジェスト:")
-            print(f"{'─' * 40}")
-            print(digest)
-            print(f"{'─' * 40}\n")
-
-            send_digest(digest)
-        except Exception as e:
-            print(f"⚠️ ダイジェスト生成/送信でエラーが発生: {type(e).__name__}: {e}")
-    elif news_results and dry_run:
-        print("🔸 [DRY-RUN] ダイジェスト生成・LINE送信をスキップしました")
-    else:
-        print("ℹ️ NEWS系の動画がなかったため、ダイジェストは生成しません")
+    return news_results
 
 
 def main():
@@ -218,8 +204,32 @@ def main():
         elif args.channel:
             # カンマ区切りで複数のチャンネルIDを処理可能にする
             channels = [c.strip() for c in args.channel.split(",") if c.strip()]
+            all_news = []
             for channel_id in channels:
-                process_channel(channel_id, count=args.count, dry_run=args.dry_run)
+                news = process_channel(channel_id, count=args.count, dry_run=args.dry_run)
+                all_news.extend(news)
+
+            # --- 全チャンネル処理後にダイジェスト生成 & LINE送信（1回だけ） ---
+            print(f"\n{'═' * 50}")
+            print(f"📊 全チャンネル合計: NEWS {len(all_news)} 件")
+            print(f"{'═' * 50}")
+
+            if all_news and not args.dry_run:
+                print(f"\n📰 全チャンネル統合ダイジェストを生成中（{len(all_news)} 件のNEWS）...")
+                try:
+                    digest = generate_daily_digest(all_news)
+                    print(f"\n{'─' * 40}")
+                    print("📰 ダイジェスト:")
+                    print(f"{'─' * 40}")
+                    print(digest)
+                    print(f"{'─' * 40}\n")
+                    send_digest(digest)
+                except Exception as e:
+                    print(f"⚠️ ダイジェスト生成/送信でエラーが発生: {type(e).__name__}: {e}")
+            elif all_news and args.dry_run:
+                print("🔸 [DRY-RUN] ダイジェスト生成・LINE送信をスキップしました")
+            else:
+                print("ℹ️ NEWS系の動画がなかったため、ダイジェストは生成しません")
     except KeyboardInterrupt:
         print("\n\n⚠️ 処理を中断しました")
         sys.exit(130)
