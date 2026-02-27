@@ -76,7 +76,7 @@ DIGEST_PROMPT = """あなたは最新のAI・テクノロジー情報をわか�
 - 全体で1000文字以内に収めること
 
 【出力フォーマット】
-📰 （本日の日付） AI・テクノロジー最新トピック
+📰 {today} AI・テクノロジー最新トピック
 
 ① （トピック名）
 （2〜3行の説明）
@@ -173,14 +173,20 @@ def generate_daily_digest(summaries: list[dict]) -> str:
     Returns:
         日刊ダイジェストテキスト。
     """
+    from datetime import datetime, timezone, timedelta
+
     client = genai.Client(api_key=Config.GEMINI_API_KEY)
+
+    # 今日の日付を取得（日本時間）
+    jst = timezone(timedelta(hours=9))
+    today = datetime.now(jst).strftime("%m/%d")
 
     # 要約を連結
     combined = ""
     for i, s in enumerate(summaries, 1):
         combined += f"--- 動画{i}: {s['title']} ---\n{s['summary']}\n\n"
 
-    prompt = DIGEST_PROMPT.format(summaries=combined)
+    prompt = DIGEST_PROMPT.format(summaries=combined, today=today)
 
     response = client.models.generate_content(
         model="gemini-3-flash-preview",
