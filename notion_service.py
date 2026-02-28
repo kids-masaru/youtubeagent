@@ -131,6 +131,40 @@ def create_page(
     return page
 
 
+def check_video_exists(url: str) -> bool:
+    """指定されたURLが既にNotionデータベースに存在するかチェックする。
+
+    Notionの「URL」プロパティを完全一致で検索します。
+
+    Args:
+        url: 検索する動画URL (例: https://www.youtube.com/watch?v=ID)
+
+    Returns:
+        存在すればTrue、存在しなければFalse
+    """
+    try:
+        notion = Client(auth=Config.NOTION_TOKEN)
+        
+        response = notion.databases.query(
+            database_id=Config.NOTION_DATABASE_ID,
+            filter={
+                "property": "URL",
+                "url": {
+                    "equals": url
+                }
+            },
+            page_size=1
+        )
+        
+        results = response.get("results", [])
+        return len(results) > 0
+        
+    except Exception as e:
+        print(f"⚠️ [Notion] 重複チェックでエラーが発生しました。スキップせずに続行します: {type(e).__name__}: {e}")
+        # APIエラーで取得できなかった場合は念のため処理を通す(Falseを返す)
+        return False
+
+
 def _split_rich_text(text: str, max_length: int = 2000) -> list[str]:
     """テキストをNotionのRich Text制限に合わせて分割する。"""
     chunks = []

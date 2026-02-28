@@ -5,13 +5,14 @@ import requests
 from config import Config
 
 
-def send_digest(digest_text: str) -> bool:
+def send_digest(digest_text: str, image_url: str = "") -> bool:
     """日刊ダイジェストをLINEに送信する。
 
-    サムネイルやURLは含めず、テキストのみをシンプルに送信。
+    テキストダイジェストに加え、インフォグラフィック画像も送信可能。
 
     Args:
         digest_text: Geminiが生成したダイジェストテキスト。
+        image_url: インフォグラフィック画像の公開URL（省略可）。
 
     Returns:
         送信成功ならTrue。
@@ -20,7 +21,17 @@ def send_digest(digest_text: str) -> bool:
     if len(digest_text) > 5000:
         digest_text = digest_text[:4990] + "\n..."
 
-    messages = [{"type": "text", "text": digest_text}]
+    messages = []
+
+    # 画像があれば先に追加（LINEでは最大5メッセージまで同時送信可能）
+    if image_url:
+        messages.append({
+            "type": "image",
+            "originalContentUrl": image_url,
+            "previewImageUrl": image_url,
+        })
+
+    messages.append({"type": "text", "text": digest_text})
 
     # LINE Messaging API Push Message
     url = "https://api.line.me/v2/bot/message/push"

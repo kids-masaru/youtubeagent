@@ -24,6 +24,10 @@ class Config:
     NOTION_TOKEN: str = os.getenv("NOTION_TOKEN", "")
     NOTION_DATABASE_ID: str = os.getenv("NOTION_DATABASE_ID", "")
 
+    # Google Drive (インフォグラフィック画像用)
+    GOOGLE_CLIENT_SECRETS_FILE: str = os.getenv("GOOGLE_CLIENT_SECRETS_FILE", "client_secrets.json").strip()
+    GOOGLE_DRIVE_FOLDER_ID: str = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+
     @classmethod
     def validate(cls, required_keys: list[str] | None = None) -> bool:
         """必要なAPIキーがすべて設定されているか検証する。

@@ -8,8 +8,10 @@ import traceback
 from config import Config
 from youtube_service import extract_video_id, get_video_info, get_latest_videos
 from gemini_service import analyze_video, generate_daily_digest
+from infographic_service import generate_infographic
+from drive_service import upload_image_to_drive
 from line_service import send_digest
-from notion_service import create_page
+from notion_service import create_page, check_video_exists
 
 
 def process_video(video_url: str, dry_run: bool = False) -> dict | None:
@@ -131,6 +133,12 @@ def process_channel(channel_id: str, count: int = 5, dry_run: bool = False) -> l
     for i, video in enumerate(videos, 1):
         print(f"\n--- [{i}/{len(videos)}] ---")
         video_url = f"https://www.youtube.com/watch?v={video['video_id']}"
+        
+        # 重複チェック（DRY-RUN時はスキップしない、またはDBの実データに基づく）
+        if not dry_run and check_video_exists(video_url):
+            print(f"⏭️ 既にNotionに保存済みの動画です。処理をスキップします: {video_url}")
+            continue
+            
         result = process_video(video_url, dry_run=dry_run)
         if result:
             news_results.append(result)
@@ -223,6 +231,19 @@ def main():
                     print(f"{'─' * 40}")
                     print(digest)
                     print(f"{'─' * 40}\n")
+
+                    # インフォグラフィック画像を生成 & Google Driveにアップロード (一時停止中)
+                    # image_url = ""
+                    # try:
+                    #     image_path = generate_infographic(digest)
+                    #     if image_path:
+                    #         image_url = upload_image_to_drive(image_path)
+                    # except Exception as img_err:
+                    #     print(f"⚠️ インフォグラフィック生成スキップ: {type(img_err).__name__}: {img_err}")
+                    # 
+                    # send_digest(digest, image_url=image_url)
+                    
+                    # 今回はテキストのみ送信
                     send_digest(digest)
                 except Exception as e:
                     print(f"⚠️ ダイジェスト生成/送信でエラーが発生: {type(e).__name__}: {e}")
